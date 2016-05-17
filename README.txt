@@ -47,6 +47,7 @@ Dummy Test File:
 -600Bytes
 
 *************Instruction***************
+
 Normal Mode:
 1. Run TFTPServer.java
 2. Run TFTPClient.java
@@ -63,3 +64,8 @@ Test Mode:
 
 Use Normal mode to transfer files.
 Use Test mode to test the network exceptions.
+
+
+*********NOTES******************
+The error simulator delays, duplicates or loses packets but retransmitting the packets on timeout has not been implemented. 
+Gets caught in a timeout loop. 
