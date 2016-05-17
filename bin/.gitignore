@@ -6,3 +6,5 @@
 /TFTPServer$Request.class
 /TFTPServer.class
 /TFTPSim.class
+/TFTPSim$TransmissionError.class
+/TFTPSim$Request.class
