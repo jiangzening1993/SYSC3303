@@ -14,6 +14,7 @@ public class TFTPClient {
 	private FileInputStream inStream;
 	private FileOutputStream outStream;
 	private int sendPort;
+	private int timeout = 250;
 
 	// private String saveFolder = System.getProperty("user.dir") +
 	// File.separator + "Client Files" + File.separator;
@@ -38,6 +39,7 @@ public class TFTPClient {
 			// port on the local host machine. This socket will be used to
 			// send and receive UDP Datagram packets.
 			sendReceiveSocket = new DatagramSocket();
+			sendReceiveSocket.setSoTimeout(timeout);
 		} catch (SocketException se) { // Can't create the socket.
 			se.printStackTrace();
 			System.exit(1);
@@ -92,7 +94,8 @@ public class TFTPClient {
 					System.out.print("Request select (read/Write/quit):");
 				}
 			}
-
+						
+			
 			// if Request is quit, then stop the loop;
 			if (req == Request.QUIT)
 				break;
@@ -152,12 +155,14 @@ public class TFTPClient {
 		byte[] msg = readMsgGenerate(fileName, mode);
 
 		try {
+			DatagramPacket lastPacket = null;
 			DatagramPacket sendPacket = new DatagramPacket(msg, msg.length,
 					InetAddress.getLocalHost(), sendPort);
+			lastPacket = sendPacket;
 			System.out.println("Sending to...");
 			printPacket(sendPacket);
 			sendReceiveSocket.send(sendPacket);
-
+			
 			// loop until data received has length less than 516 bytes
 			boolean fileEnd = false;
 			for (int i = 1; !fileEnd; i++) {
@@ -165,7 +170,19 @@ public class TFTPClient {
 				// receive data packet for block i
 				msg = new byte[516];
 				DatagramPacket dataPacket = new DatagramPacket(msg, msg.length);
-				sendReceiveSocket.receive(dataPacket);
+				
+				while(true)
+				{
+					try					
+					{
+						sendReceiveSocket.receive(dataPacket);
+						break;
+					}
+					catch(SocketTimeoutException ex){
+						ex.printStackTrace();
+						sendReceiveSocket.send(lastPacket);
+					}
+				}
 				System.out.println("Received from...");
 				printPacket(dataPacket);
 
@@ -187,6 +204,7 @@ public class TFTPClient {
 				System.out.println("Sending to...");
 				printPacket(ackPacket);
 				sendReceiveSocket.send(ackPacket);
+				lastPacket = ackPacket;
 
 			}
 			outStream.close();
@@ -207,7 +225,19 @@ public class TFTPClient {
 
 			msg = new byte[4];
 			DatagramPacket receivePacket = new DatagramPacket(msg, msg.length);
-			sendReceiveSocket.receive(receivePacket);
+			
+			while(true){
+				try
+				{
+					sendReceiveSocket.receive(receivePacket);
+					break;
+				}catch(SocketTimeoutException  exception)
+				{
+					exception.printStackTrace();
+					sendReceiveSocket.send(sendPacket);
+				}
+			}
+			
 			System.out.println("Received from...");
 			printPacket(receivePacket);
 
@@ -238,7 +268,19 @@ public class TFTPClient {
 
 				msg = new byte[4];
 				DatagramPacket ackPacket = new DatagramPacket(msg, msg.length);
-				sendReceiveSocket.receive(ackPacket);
+				
+				while(true){
+					try
+					{
+						sendReceiveSocket.receive(ackPacket);
+						break;
+					}catch(SocketTimeoutException  exception)
+					{
+						exception.printStackTrace();
+						sendReceiveSocket.send(dataPacket);
+					}
+				}
+				
 				System.out.println("Received from...");
 				printPacket(ackPacket);
 
