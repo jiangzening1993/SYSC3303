@@ -47,9 +47,19 @@ Dummy Test File:
 -600Bytes
 
 *************Instruction***************
+Normal Mode:
+1. Run TFTPServer.java
+2. Run TFTPClient.java
+3. Select normal mode in console of TFTPClient.java
+4. Set up the data infomation in console of TFTPClient.java
+
+Test Mode:
 1. Run TFTPServer.java
 2. Run TFTPSim.java
-3. Run TFTPClient.java
+3. Set up the test information in console of TFTPSim.java
+4. Run TFTPClient.java
+5. Select normal mode in console of TFTPClient.java
+6. Set up the data information in console of TFTPClient.java
 
 Use Normal mode to transfer files.
-Use Test mode to test the timeout exceptions.
+Use Test mode to test the network exceptions.
