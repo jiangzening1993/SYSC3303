@@ -19,7 +19,7 @@ public class RequestThread extends Thread {
 		resetBlockCounter();
 		try {
 			sendReceiveSocket = new DatagramSocket();
-			sendReceiveSocket.setSoTimeout(250);
+			sendReceiveSocket.setSoTimeout(2000);
 		} catch (SocketException e) {
 			e.printStackTrace();
 			System.exit(1);
@@ -89,8 +89,10 @@ public class RequestThread extends Thread {
 					break;
 				}
 				catch (IOException e) {
-					e.printStackTrace();
 					try{
+						if (length < 516) {//last ack packet lost doesn't matter
+							break;
+						}
 						sendReceiveSocket.send(sendPacket);
 					}catch(Exception ex)
 					{
@@ -121,11 +123,9 @@ public class RequestThread extends Thread {
 
 	private void completeWrite() {
 		byte[] response = TFTPServer.writeResp;
-		DatagramPacket lastPacket = null;
 		DatagramPacket sendPacket = new DatagramPacket(response,
 				response.length, receivePacket.getAddress(),
 				receivePacket.getPort());
-		lastPacket = sendPacket;
 		System.out.println("Sending ACK for block: 0");
 		try {
 			sendReceiveSocket.send(sendPacket);
@@ -138,20 +138,12 @@ public class RequestThread extends Thread {
 		while (true) {
 			byte[] data = new byte[516];
 			receivePacket = new DatagramPacket(data, data.length);
-			while(true){
 				try {
 					sendReceiveSocket.receive(receivePacket);
-					break;
 				} catch (IOException e) {
 					e.printStackTrace();
-					try{
-						sendReceiveSocket.send(lastPacket);
-					}catch(IOException ex){
-						ex.printStackTrace();
-						System.exit(1);
-					}
 				}
-			}
+
 
 			int block = (data[2] & 0xFF) * 256 + (data[3] & 0xFF);
 			System.out.println("Received DATA for block: " + block);
@@ -169,7 +161,6 @@ public class RequestThread extends Thread {
 			System.out.println("Sending ACK for block: " + block);
 			try {
 				sendReceiveSocket.send(sendPacket);
-				lastPacket = sendPacket;
 			} catch (IOException e) {
 				e.printStackTrace();
 				System.exit(1);

@@ -14,7 +14,7 @@ public class TFTPClient {
 	private FileInputStream inStream;
 	private FileOutputStream outStream;
 	private int sendPort;
-	private int timeout = 250;
+	private int timeout = 2000;
 
 	// private String saveFolder = System.getProperty("user.dir") +
 	// File.separator + "Client Files" + File.separator;
@@ -39,7 +39,7 @@ public class TFTPClient {
 			// port on the local host machine. This socket will be used to
 			// send and receive UDP Datagram packets.
 			sendReceiveSocket = new DatagramSocket();
-			sendReceiveSocket.setSoTimeout(timeout);
+
 		} catch (SocketException se) { // Can't create the socket.
 			se.printStackTrace();
 			System.exit(1);
@@ -150,19 +150,17 @@ public class TFTPClient {
 		sendReceiveSocket.close();
 		scan.close();
 	}
-
+	
 	private void read(String fileName, String mode) {
 		byte[] msg = readMsgGenerate(fileName, mode);
-
+		DatagramPacket lastPacket = null; 
 		try {
-			DatagramPacket lastPacket = null;
 			DatagramPacket sendPacket = new DatagramPacket(msg, msg.length,
 					InetAddress.getLocalHost(), sendPort);
-			lastPacket = sendPacket;
 			System.out.println("Sending to...");
 			printPacket(sendPacket);
 			sendReceiveSocket.send(sendPacket);
-			
+			lastPacket = sendPacket;
 			// loop until data received has length less than 516 bytes
 			boolean fileEnd = false;
 			for (int i = 1; !fileEnd; i++) {
@@ -179,8 +177,8 @@ public class TFTPClient {
 						break;
 					}
 					catch(SocketTimeoutException ex){
-						ex.printStackTrace();
-						sendReceiveSocket.send(lastPacket);
+							ex.printStackTrace();
+							sendReceiveSocket.send(lastPacket);
 					}
 				}
 				System.out.println("Received from...");
@@ -217,6 +215,7 @@ public class TFTPClient {
 		byte[] msg = writeMsgGenerate(fileName, mode);
 
 		try {
+			sendReceiveSocket.setSoTimeout(timeout);
 			DatagramPacket sendPacket = new DatagramPacket(msg, msg.length,
 					InetAddress.getLocalHost(), sendPort);
 			System.out.println("Sending to...");
@@ -276,6 +275,8 @@ public class TFTPClient {
 						break;
 					}catch(SocketTimeoutException  exception)
 					{
+						if(fileEnd)
+							break;
 						exception.printStackTrace();
 						sendReceiveSocket.send(dataPacket);
 					}
