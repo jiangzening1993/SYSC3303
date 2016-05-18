@@ -46,6 +46,14 @@ Dummy Test File:
 -512Bytes
 -600Bytes
 
+Diagram Files:
+-UMLDiagram.gif
+-DelayClientPacket.jpg
+-DelayServerPacket.jpg
+-DuplicatedPacket.jpg
+-LostPacket1.jpg
+-LostPacket2.jpg
+
 *************Instruction***************
 
 Normal Mode:
@@ -64,8 +72,3 @@ Test Mode:
 
 Use Normal mode to transfer files.
 Use Test mode to test the network exceptions.
-
-
-*********NOTES******************
-The error simulator delays, duplicates or loses packets but retransmitting the packets on timeout has not been implemented. 
-Gets caught in a timeout loop. 
