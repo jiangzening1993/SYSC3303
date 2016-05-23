@@ -11,6 +11,12 @@ public class RequestThread extends Thread {
 	private DatagramSocket sendReceiveSocket;
 	private byte[] blockCounter;
 	private String fileName, mode;
+	
+	private static final int TIMEOUT = 2000;
+	
+	private static final int VALID = 0;
+	private static final int ERROR4 = 4;
+	private static final int ERROR5 = 5;
 
 	public RequestThread(DatagramPacket receivePacket) {
 		this.receivePacket = receivePacket;
@@ -19,7 +25,6 @@ public class RequestThread extends Thread {
 		resetBlockCounter();
 		try {
 			sendReceiveSocket = new DatagramSocket();
-			sendReceiveSocket.setSoTimeout(2000);
 		} catch (SocketException e) {
 			e.printStackTrace();
 			System.exit(1);

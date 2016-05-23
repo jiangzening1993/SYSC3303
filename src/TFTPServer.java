@@ -21,6 +21,7 @@ public class TFTPServer {
 	// UDP datagram packets and sockets used to send / receive
 	private DatagramPacket receivePacket;
 	private DatagramSocket receiveSocket;
+	private Boolean shutdown = false;
 
 	public TFTPServer() {
 		try {
@@ -35,7 +36,7 @@ public class TFTPServer {
 	}
 
 	public void receiveAndSendTFTP() throws Exception {
-		for (;;) { // loop forever
+		while(!shutdown) { // loop forever
 			// Construct a DatagramPacket for receiving packets up
 			// to 100 bytes long (the length of the byte array).
 
@@ -54,9 +55,19 @@ public class TFTPServer {
 			thread.start();
 		}
 	}
+	
+	public DatagramSocket getReceiveSocket(){
+		return receiveSocket;
+	}
 
 	public static void main(String args[]) throws Exception {
+		System.out.println("Type 'quit' to shut down server");
 		TFTPServer c = new TFTPServer();
+		new Shutdown(c).start();
 		c.receiveAndSendTFTP();
+	}
+
+	public void setShutdown() {
+		shutdown = true;
 	}
 }

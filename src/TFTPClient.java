@@ -14,7 +14,10 @@ public class TFTPClient {
 	private FileInputStream inStream;
 	private FileOutputStream outStream;
 	private int sendPort;
-	private int timeout = 2000;
+	private InetAddress sendIP;
+	private int receivePort;
+	private InetAddress receiveHost;
+	private String errorMsg;
 
 	// private String saveFolder = System.getProperty("user.dir") +
 	// File.separator + "Client Files" + File.separator;
@@ -33,6 +36,15 @@ public class TFTPClient {
 		INV, VAL
 	};
 
+	private static final int TIMEOUT = 2000;
+	private static final int READ = 1;
+	private static final int WRITE = 2;
+	private static final int DATA = 3;
+	private static final int ACK = 4;
+	private static final int ERROR = 5;
+
+	private static final int VALID = 0, ERROR4 = 4, ERROR5 = 5, ERROR_DUP = 6;
+
 	public TFTPClient() {
 		try {
 			// Construct a datagram socket and bind it to any available
@@ -43,6 +55,12 @@ public class TFTPClient {
 		} catch (SocketException se) { // Can't create the socket.
 			se.printStackTrace();
 			System.exit(1);
+		}
+
+		try {
+			sendIP = InetAddress.getLocalHost();
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -94,13 +112,11 @@ public class TFTPClient {
 					System.out.print("Request select (read/Write/quit):");
 				}
 			}
-						
-			
+
 			// if Request is quit, then stop the loop;
 			if (req == Request.QUIT)
 				break;
 
-			
 			String fileName;
 			// choose file
 			System.out
@@ -112,7 +128,7 @@ public class TFTPClient {
 			File file = new File(fileName);
 
 			System.out.println("Select file: " + fileName);
-			
+
 			System.out.println("Filename " + file.getName());
 
 			// Select Read/Write request, otherwise loop forever
@@ -150,17 +166,35 @@ public class TFTPClient {
 		sendReceiveSocket.close();
 		scan.close();
 	}
-	
+
 	private void read(String fileName, String mode) {
 		byte[] msg = readMsgGenerate(fileName, mode);
-		DatagramPacket lastPacket = null; 
 		try {
 			DatagramPacket sendPacket = new DatagramPacket(msg, msg.length,
-					InetAddress.getLocalHost(), sendPort);
+					sendIP, sendPort);
 			System.out.println("Sending to...");
 			printPacket(sendPacket);
-			sendReceiveSocket.send(sendPacket);
-			lastPacket = sendPacket;
+			sendReceiveSocket.setSoTimeout(TIMEOUT);
+
+			int timeouts = 0;
+
+			do {
+				try {
+					sendReceiveSocket.send(sendPacket);
+					break;
+				} catch (SocketTimeoutException e) {
+					System.out.println("Read request timed out " + TIMEOUT
+							+ "ms.");
+					timeouts++;
+				}
+			} while (timeouts < 5);
+
+			if (timeouts >= 5) {
+				System.out
+						.println("Client reached 5 timeout, transfer aborted");
+				return;
+			}
+
 			// loop until data received has length less than 516 bytes
 			boolean fileEnd = false;
 			for (int i = 1; !fileEnd; i++) {
@@ -168,24 +202,36 @@ public class TFTPClient {
 				// receive data packet for block i
 				msg = new byte[516];
 				DatagramPacket dataPacket = new DatagramPacket(msg, msg.length);
-				
-				while(true)
-				{
-					try					
-					{
-						sendReceiveSocket.receive(dataPacket);
-						break;
-					}
-					catch(SocketTimeoutException ex){
-							ex.printStackTrace();
-							sendReceiveSocket.send(lastPacket);
-					}
+				sendReceiveSocket.setSoTimeout(TIMEOUT);
+
+				try {
+					sendReceiveSocket.receive(dataPacket);
+
+				} catch (SocketTimeoutException ex) {
+					System.out.println("Client timed out " + TIMEOUT
+							+ "ms while waiting for data. Transfer aborted");
 				}
+
 				System.out.println("Received from...");
 				printPacket(dataPacket);
 
-				if (parseData(i, dataPacket) == AckPack.INV)
+				receivePort = dataPacket.getPort();
+				receiveHost = dataPacket.getAddress();
+				int result = verifyPacket(dataPacket, i, DATA, receivePort,
+						receiveHost);
+
+				if (result == ERROR4) {
+					handleError4(receivePort, receiveHost);
+					outStream.close();
+					new File(fileName).delete();
 					return;
+				}
+
+				if (result == ERROR5) {
+					handleError5(dataPacket.getPort(), dataPacket.getAddress());
+					i--;
+					continue;
+				}
 
 				// if the packet received a file less than 516, then stop
 				if (dataPacket.getLength() != 516)
@@ -202,7 +248,6 @@ public class TFTPClient {
 				System.out.println("Sending to...");
 				printPacket(ackPacket);
 				sendReceiveSocket.send(ackPacket);
-				lastPacket = ackPacket;
 
 			}
 			outStream.close();
@@ -211,37 +256,121 @@ public class TFTPClient {
 		}
 	}
 
+	private void handleError4(int port, InetAddress host) {
+		System.out.println("Error Code 4");
+		sendErrorPacket(port, host, ERROR4, "Illegal TFTP operation: "
+				+ errorMsg);
+		System.out.println("Transfer Aborted.");
+
+	}
+
+	private void handleError5(int port, InetAddress host) {
+		System.out.println("Error Code 5");
+		sendErrorPacket(port, host, ERROR5, "Unknown transfer ID.");
+	}
+
+	private void sendErrorPacket(int port, InetAddress host, int error,
+			String msg) {
+		try {
+			byte[] errorData = generateErrorData(error, msg);
+			DatagramPacket errorPacket = new DatagramPacket(errorData,
+					errorData.length, host, port);
+			System.out.println("Sending to...");
+			printPacket(errorPacket);
+			sendReceiveSocket.send(errorPacket);
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+
+	private byte[] generateErrorData(int error, String message) {
+		byte[] data = new byte[message.length() + 5];
+		data[0] = 0;
+		data[1] = 5;
+		data[2] = (byte) ((error / 256) & 0xFF);
+		data[3] = (byte) ((error % 256) & 0xFF);
+		System.arraycopy(message.getBytes(), 0, data, 4, message.length());
+		data[data.length - 1] = 0;
+		return data;
+	}
+
+	private int verifyPacket(DatagramPacket received, int block, int type,
+			int port, InetAddress host) {
+
+		if ((received.getPort() != port)
+				|| (!received.getAddress().equals(host))) {
+			return ERROR5;
+		}
+
+		if (type == ACK && received.getLength() != 4) {
+			errorMsg = "Invalid ACK packet";
+			return ERROR4;
+		}
+
+		if (type == DATA
+				&& ((received.getLength() < 4) || (received.getLength() > 516))) {
+			errorMsg = "Invalid DATA packet";
+			return ERROR4;
+		}
+
+		return parsePacket(type, block, received);
+	}
+
 	private void write(String fileName, String mode) {
 		byte[] msg = writeMsgGenerate(fileName, mode);
 
 		try {
-			sendReceiveSocket.setSoTimeout(timeout);
 			DatagramPacket sendPacket = new DatagramPacket(msg, msg.length,
 					InetAddress.getLocalHost(), sendPort);
 			System.out.println("Sending to...");
 			printPacket(sendPacket);
-			sendReceiveSocket.send(sendPacket);
+			sendReceiveSocket.setSoTimeout(TIMEOUT);
+			int timeouts = 0;
 
-			msg = new byte[4];
+			do {
+				try {
+					sendReceiveSocket.send(sendPacket);
+					break;
+				} catch (SocketTimeoutException e) {
+					System.out.println("Write request timed out " + TIMEOUT
+							+ "ms.");
+					timeouts++;
+				}
+			} while (timeouts < 5);
+
+			if (timeouts >= 5) {
+				System.out
+						.println("Client reached 5 timeout, transfer aborted");
+				return;
+			}
+
+			msg = new byte[516];
 			DatagramPacket receivePacket = new DatagramPacket(msg, msg.length);
-			
-			while(true){
-				try
-				{
+			sendReceiveSocket.setSoTimeout(TIMEOUT);
+			timeouts = 0;
+			do {
+				try {
 					sendReceiveSocket.receive(receivePacket);
 					break;
-				}catch(SocketTimeoutException  exception)
-				{
-					exception.printStackTrace();
-					sendReceiveSocket.send(sendPacket);
+				} catch (SocketTimeoutException e) {
+					System.out.println("Client timed out " + TIMEOUT + "ms.");
+					timeouts++;
 				}
+			} while (timeouts < 5);
+			if (timeouts >= 5) {
+				System.out.println("Client timed out " + TIMEOUT
+						+ "ms while waiting for data. Transfer aborted");
+				return;
 			}
-			
 			System.out.println("Received from...");
 			printPacket(receivePacket);
 
-			// check the valid of ack 0
-			if (parseAck(0, receivePacket) == AckPack.INV)
+			receivePort = receivePacket.getPort();
+			receiveHost = receivePacket.getAddress();
+
+			if (VALID != handleErrors(receivePacket, 0, ACK, receivePort,
+					receiveHost))
 				return;
 
 			boolean fileEnd = false;
@@ -252,8 +381,8 @@ public class TFTPClient {
 				msg[2] = (byte) ((i / 256) & 0xFF);
 				msg[3] = (byte) ((i % 256) & 0xFF);
 
-				int len = inStream.read(msg, 4, 512);
-				if (len != 512)
+				int len;
+				if ((len = inStream.read(msg, 4, 512)) != 512)
 					fileEnd = true;
 
 				if (len == -1)
@@ -261,38 +390,57 @@ public class TFTPClient {
 
 				DatagramPacket dataPacket = new DatagramPacket(msg, len + 4,
 						InetAddress.getLocalHost(), receivePacket.getPort());
-				System.out.println("Sending to...");
-				printPacket(dataPacket);
-				sendReceiveSocket.send(dataPacket);
 
-				msg = new byte[4];
-				DatagramPacket ackPacket = new DatagramPacket(msg, msg.length);
-				
-				while(true){
-					try
-					{
-						sendReceiveSocket.receive(ackPacket);
+				sendReceiveSocket.setSoTimeout(TIMEOUT);
+				timeouts = 0;
+
+				do {
+					System.out.println("Sending to...");
+					printPacket(dataPacket);
+					sendReceiveSocket.send(dataPacket);
+					try {
+						int result;
+						do {
+							msg = new byte[516];
+							DatagramPacket ackPacket = new DatagramPacket(msg,
+									msg.length);
+							sendReceiveSocket.receive(ackPacket);
+							System.out.println("Received from...");
+							printPacket(ackPacket);
+
+							result = handleErrors(ackPacket, i, ACK,
+									receivePort, receiveHost);
+							if (result == ERROR4)
+								return;
+						} while (result != VALID);
 						break;
-					}catch(SocketTimeoutException  exception)
-					{
-						if(fileEnd)
-							break;
-						exception.printStackTrace();
-						sendReceiveSocket.send(dataPacket);
+					} catch (SocketTimeoutException e) {
+						System.out.println("Client timed out " + TIMEOUT + "ms.");
+						timeouts++;
 					}
-				}
-				
-				System.out.println("Received from...");
-				printPacket(ackPacket);
+				} while (timeouts < 5);
 
-				if (parseAck(i, ackPacket) == AckPack.INV)
+				if (timeouts >= 5) {
+					System.out.println("Client reached 5 timeout, transfer aborted");
 					return;
+				}
 			}
 			inStream.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		} catch (Exception e) {
 
+		}
+	}
+
+	private int handleErrors(DatagramPacket packet, int block, int type,
+			int port, InetAddress ip) {
+		int result = verifyPacket(packet, block, type, port, ip);
+		if (result == ERROR4)
+			handleError4(receivePort, receiveHost);
+		else if (result == ERROR5)
+			handleError5(packet.getPort(), packet.getAddress());
+		else if (result == ERROR_DUP)
+			System.out.println("Duplicate packet received");
+		return result;
 	}
 
 	private byte[] readMsgGenerate(String fileName, String mode) {
@@ -309,7 +457,7 @@ public class TFTPClient {
 
 		byte[] extMsg = new byte[len];
 		System.arraycopy(msg, 0, extMsg, 0, len);
-		
+
 		return extMsg;
 	}
 
@@ -324,7 +472,7 @@ public class TFTPClient {
 		System.arraycopy(md, 0, msg, fn.length + 3, md.length);
 		int len = fn.length + md.length + 4;
 		msg[len - 1] = 0;
-		
+
 		byte[] extMsg = new byte[len];
 		System.arraycopy(msg, 0, extMsg, 0, len);
 
@@ -343,33 +491,6 @@ public class TFTPClient {
 	}
 
 	/**
-	 * Calls parse packet for a ack packet (byte 2 is 4)
-	 * 
-	 * @param number
-	 *            the packet block #
-	 * @param packet
-	 *            the packet from which data is extracted
-	 * @return INV enum if packet is invalid, VAL if packet is valid
-	 */
-	private AckPack parseAck(int number, DatagramPacket packet) {
-		return parsePacket(4, number, packet);
-	}
-
-	/**
-	 * Calls parse packet for the data packet (byte 2 is 3)
-	 * 
-	 * @param number
-	 *            the packet block #
-	 * @param packet
-	 *            the packet from which data is extracted
-	 * @return INV enum if packet is invalid, VAL if packet is valid
-	 */
-	private AckPack parseData(int number, DatagramPacket packet) {
-		return parsePacket(3, number, packet);
-
-	}
-
-	/**
 	 * Checks packet for valid type, number and format of first 4 bytes.
 	 * 
 	 * @param type
@@ -380,19 +501,34 @@ public class TFTPClient {
 	 *            the packet from which data is extracted
 	 * @return the INV enum if packet is invalid, VAL if packet is valid
 	 */
-	private AckPack parsePacket(int type, int number, DatagramPacket packet) {
+	private int parsePacket(int type, int number, DatagramPacket packet) {
 		byte[] msg = new byte[packet.getLength()];
 		System.arraycopy(packet.getData(), 0, msg, 0, msg.length);
 
-		if (msg[0] != 0)
-			return AckPack.INV;
-		if (msg[1] != (byte) type)
-			return AckPack.INV;
-		if ((msg[2] & 0xFF) != ((number / 256) & 0xFF))
-			return AckPack.INV;
-		if ((msg[3] & 0xFF) != ((number % 256) & 0xFF))
-			return AckPack.INV;
-		return AckPack.VAL;
+		if (msg[0] != 0) {
+			errorMsg = "Invalid opcode";
+			return ERROR4;
+		}
+
+		if (msg[1] != (byte) type) {
+			errorMsg = "Invalid packet type";
+			return ERROR4;
+		}
+		if ((msg[2] & 0xFF) < ((number / 256) & 0xFF)) {
+			return ERROR_DUP;
+		} else if ((msg[2] & 0xFF) > ((number / 256) & 0xFF)) {
+			errorMsg = "Invalid block number";
+			return ERROR4;
+		}
+
+		if ((msg[3] & 0xFF) < ((number % 256) & 0xFF)) {
+			return ERROR_DUP;
+		} else if ((msg[3] & 0xFF) > ((number % 256) & 0xFF)) {
+			errorMsg = "Invalid block number";
+			return ERROR4;
+		}
+
+		return VALID;
 	}
 
 	public static void main(String args[]) {
