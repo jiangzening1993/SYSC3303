@@ -1,4 +1,3 @@
-
 // TFTPSim.java
 // This class is the beginnings of an error simulator for a simple TFTP server 
 // based on UDP/IP. The simulator receives a read or write packet from a client and
@@ -64,10 +63,12 @@ public class TFTPSim {
 		System.out.print("What block number should the error take place on?");
 		int blockNumber = sc.nextInt();
 
-		System.out.print("Error type on block?(1 = delay, 2 = duplicate, 3 = lose)");
+		System.out
+				.print("Error type on block?(1 = delay, 2 = duplicate, 3 = lose)");
 		int errorType = sc.nextInt();
 
-		System.out.print("What kind of data would you want the error to be generated on? (ACK, WRQ, RRQ, DATA)");
+		System.out
+				.print("What kind of data would you want the error to be generated on? (ACK, WRQ, RRQ, DATA)");
 		String dataType = sc.next().toUpperCase();
 
 		if (errorType == 1 || errorType == 2) {
@@ -90,7 +91,7 @@ public class TFTPSim {
 				e.printStackTrace();
 				System.exit(1);
 			}
-			
+
 			clientPort = receivePacket.getPort();
 
 			// Process the received datagram.
@@ -103,10 +104,9 @@ public class TFTPSim {
 
 			// print the bytes
 			/*
-			for (j = 0; j < len; j++) {
-				System.out.println("byte " + j + " " + data[j]);
-			}
-			*/
+			 * for (j = 0; j < len; j++) { System.out.println("byte " + j + " "
+			 * + data[j]); }
+			 */
 
 			// Form a String from the byte array, and print the string.
 			String received = new String(data, 0, len);
@@ -114,25 +114,28 @@ public class TFTPSim {
 
 			// CHECK TO SEE IF IT IS THE APPROPRIATE PACKAGE TO DELAY
 			if (isTransErrorPacket(receivePacket, dataType, blockNumber)) {
-				handleError(receivePacket, getError(errorType), sendReceiveSocket, 69);
+				handleError(receivePacket, getError(errorType),
+						sendReceiveSocket, 69);
 			}
 
 			// **************************************Send to
 			// server****************************************************************
-			if ((getError(errorType) == TransmissionError.DELAY || getError(errorType) == TransmissionError.DUPLICATE) || getBlock(receivePacket.getData()) != blockNumber) {
-				sendPacket = new DatagramPacket(data, len, receivePacket.getAddress(), 69);
+			if ((getError(errorType) == TransmissionError.DELAY || getError(errorType) == TransmissionError.DUPLICATE)
+					|| getBlock(receivePacket.getData()) != blockNumber) {
+				sendPacket = new DatagramPacket(data, len,
+						receivePacket.getAddress(), 69);
 
 				System.out.println("Simulator: sending packet.");
 				System.out.println("To host: " + sendPacket.getAddress());
-				System.out.println("Destination host port: " + sendPacket.getPort());
+				System.out.println("Destination host port: "
+						+ sendPacket.getPort());
 				len = sendPacket.getLength();
 				System.out.println("Length: " + len);
 				System.out.println("Containing: ");
 				/*
-				for (j = 0; j < len; j++) {
-					System.out.println("byte " + j + " " + data[j]);
-				}
-				*/
+				 * for (j = 0; j < len; j++) { System.out.println("byte " + j +
+				 * " " + data[j]); }
+				 */
 
 				// Send the datagram packet to the server via the send/receive
 				// socket.
@@ -168,12 +171,10 @@ public class TFTPSim {
 			System.out.println("Length: " + len);
 			System.out.println("Containing: ");
 			/*
-			for (j = 0; j < len; j++) {
-				System.out.println("byte " + j + " " + data[j]);
-			}
-			*/
+			 * for (j = 0; j < len; j++) { System.out.println("byte " + j + " "
+			 * + data[j]); }
+			 */
 
-			
 			try {
 				// Construct a new datagram socket and bind it to any port
 				// on the local host machine. This socket will be used to
@@ -183,34 +184,35 @@ public class TFTPSim {
 				se.printStackTrace();
 				System.exit(1);
 			}
-			
+
 			// CHECK TO SEE IF IT IS THE APPROPRIATE PACKAGE TO DELAY
 			if (isTransErrorPacket(receivePacket, dataType, blockNumber)) {
-				handleError(receivePacket, getError(errorType), sendSocket, clientPort);
+				handleError(receivePacket, getError(errorType), sendSocket,
+						clientPort);
 			}
 
 			// *************************Send to
 			// client**********************************
-			
+
 			// Send the datagram packet to the client via a new socket.
 
-
-
-			if ((getError(errorType) == TransmissionError.DELAY || getError(errorType) == TransmissionError.DUPLICATE) || getBlock(receivePacket.getData()) != blockNumber) {
-				sendPacket = new DatagramPacket(data, receivePacket.getLength(), receivePacket.getAddress(),
+			if ((getError(errorType) == TransmissionError.DELAY || getError(errorType) == TransmissionError.DUPLICATE)
+					|| getBlock(receivePacket.getData()) != blockNumber) {
+				sendPacket = new DatagramPacket(data,
+						receivePacket.getLength(), receivePacket.getAddress(),
 						clientPort);
 
 				System.out.println("Simulator: Sending packet:");
 				System.out.println("To host: " + sendPacket.getAddress());
-				System.out.println("Destination host port: " + sendPacket.getPort());
+				System.out.println("Destination host port: "
+						+ sendPacket.getPort());
 				len = sendPacket.getLength();
 				System.out.println("Length: " + len);
 				System.out.println("Containing: ");
 				/*
-				for (j = 0; j < len; j++) {
-					System.out.println("byte " + j + " " + data[j]);
-				}
-				*/
+				 * for (j = 0; j < len; j++) { System.out.println("byte " + j +
+				 * " " + data[j]); }
+				 */
 
 				try {
 					sendSocket.send(sendPacket);
@@ -219,7 +221,8 @@ public class TFTPSim {
 					System.exit(1);
 				}
 
-				System.out.println("Simulator: packet sent using port " + sendSocket.getLocalPort());
+				System.out.println("Simulator: packet sent using port "
+						+ sendSocket.getLocalPort());
 				System.out.println();
 			}
 			sc.close();
@@ -230,7 +233,8 @@ public class TFTPSim {
 
 	}
 
-	public boolean isTransErrorPacket(DatagramPacket rec, String dataType, int blockNum) {
+	public boolean isTransErrorPacket(DatagramPacket rec, String dataType,
+			int blockNum) {
 		if (checkOpcode(rec.getData()) == checkOpcode(dataType)) {
 			if (getBlock(rec.getData()) == blockNum) {
 				return true;
@@ -241,7 +245,8 @@ public class TFTPSim {
 	}
 
 	// Handles client to server error
-	public void handleError(DatagramPacket rec, TransmissionError x, DatagramSocket send, int port) {
+	public void handleError(DatagramPacket rec, TransmissionError x,
+			DatagramSocket send, int port) {
 		if (x == TransmissionError.DELAY) {
 			try {
 				Thread.sleep(getDelay());
@@ -250,7 +255,8 @@ public class TFTPSim {
 				System.exit(1);
 			}
 		} else if (x == TransmissionError.DUPLICATE) {
-			DatagramPacket sendPacket1 = new DatagramPacket(rec.getData(), rec.getLength(), rec.getAddress(), port);
+			DatagramPacket sendPacket1 = new DatagramPacket(rec.getData(),
+					rec.getLength(), rec.getAddress(), port);
 			// Send an exact copy and delay the second.
 			try {
 				send.send(sendPacket1);
@@ -270,7 +276,6 @@ public class TFTPSim {
 		}
 
 	}
-
 
 	public int getDelay() {
 		return delay;
