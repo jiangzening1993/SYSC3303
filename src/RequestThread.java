@@ -11,12 +11,6 @@ public class RequestThread extends Thread {
 	private DatagramSocket sendReceiveSocket;
 	private byte[] blockCounter;
 	private String fileName, mode;
-	
-	private static final int TIMEOUT = 2000;
-	
-	private static final int VALID = 0;
-	private static final int ERROR4 = 4;
-	private static final int ERROR5 = 5;
 
 	public RequestThread(DatagramPacket receivePacket) {
 		this.receivePacket = receivePacket;
@@ -49,7 +43,7 @@ public class RequestThread extends Thread {
 		}
 
 		incrementBlockCounter();
-		
+
 		while (true) {
 			int length = 4;
 			if (fileData.length / 512 < 1) {
@@ -71,7 +65,7 @@ public class RequestThread extends Thread {
 			int block = (blockCounter[0] & 0xFF) * 256
 					+ (blockCounter[1] & 0xFF);
 			System.out.println("Sending DATA for block: " + block);
-			
+
 			try {
 				sendReceiveSocket.send(sendPacket);
 			} catch (IOException e) {
@@ -87,25 +81,13 @@ public class RequestThread extends Thread {
 			incrementBlockCounter();
 
 			receivePacket = new DatagramPacket(new byte[5], 5);
-			while(true)
-			{
-				try {
-					sendReceiveSocket.receive(receivePacket);
-					break;
-				}
-				catch (IOException e) {
-					try{
-						if (length < 516) {//last ack packet lost doesn't matter
-							break;
-						}
-						sendReceiveSocket.send(sendPacket);
-					}catch(Exception ex)
-					{
-						ex.printStackTrace(); 
-						System.exit(1);
-					}
-				}
+			try {
+				sendReceiveSocket.receive(receivePacket);
+			} catch (IOException e) {
+				e.printStackTrace();
+				System.exit(1);
 			}
+
 			System.out.println("Received ACK for block: " + block);
 
 			if (length < 516) {
@@ -131,6 +113,7 @@ public class RequestThread extends Thread {
 		DatagramPacket sendPacket = new DatagramPacket(response,
 				response.length, receivePacket.getAddress(),
 				receivePacket.getPort());
+
 		System.out.println("Sending ACK for block: 0");
 		try {
 			sendReceiveSocket.send(sendPacket);
@@ -143,12 +126,12 @@ public class RequestThread extends Thread {
 		while (true) {
 			byte[] data = new byte[516];
 			receivePacket = new DatagramPacket(data, data.length);
-				try {
-					sendReceiveSocket.receive(receivePacket);
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-
+			try {
+				sendReceiveSocket.receive(receivePacket);
+			} catch (IOException e) {
+				e.printStackTrace();
+				System.exit(1);
+			}
 
 			int block = (data[2] & 0xFF) * 256 + (data[3] & 0xFF);
 			System.out.println("Received DATA for block: " + block);
